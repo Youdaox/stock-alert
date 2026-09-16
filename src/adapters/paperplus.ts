@@ -22,6 +22,12 @@ export const paperPlusConfigSchema = z.object({
   maxPages: z.number().int().positive().default(10),
   requestDelayMs: z.number().int().nonnegative().default(1500),
   requireKeyword: z.boolean().default(true),
+  /** Paper Plus answers 403 to non-browser user agents, so this adapter identifies as Chrome. */
+  userAgent: z
+    .string()
+    .default(
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36',
+    ),
 });
 
 export type PaperPlusConfig = z.infer<typeof paperPlusConfigSchema>;
@@ -94,7 +100,12 @@ export class PaperPlusAdapter implements Adapter {
 
   public async fetch(rawConfig: unknown, ctx: AdapterContext): Promise<AdapterResult> {
     const config = paperPlusConfigSchema.parse(rawConfig);
-    const http = { ...ctx.http, delayMs: config.requestDelayMs };
+    const http = { ...ctx.http, delayMs: config.requestDelayMs, userAgent: config.userAgent };
+    const headers = {
+      accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'accept-language': 'en-NZ,en;q=0.9',
+      'upgrade-insecure-requests': '1',
+    };
 
     const products = new Map<string, ProductRecord>();
     const observations = new Map<string, StockObservation>();
@@ -102,7 +113,7 @@ export class PaperPlusAdapter implements Adapter {
     for (const categoryPath of config.categoryPaths) {
       for (let page = 1; page <= config.maxPages; page += 1) {
         const url = `${config.baseUrl}${categoryPath}?page=${page}`;
-        const response = await requestWithPolicy(url, { headers: { accept: 'text/html' } }, http);
+        const response = await requestWithPolicy(url, { headers }, http);
 
         if (!response.ok) {
           throw new Error(`Paper Plus request failed: HTTP ${response.status} for ${url}`);

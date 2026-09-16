@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 
 import { paperPlusConfigSchema } from '../adapters/paperplus.js';
 import { shopifyConfigSchema } from '../adapters/shopify.js';
+import { warehouseConfigSchema } from '../adapters/warehouse.js';
 import { loadConfig } from '../config.js';
 import { createDb } from './client.js';
 import { sources } from './schema.js';
@@ -57,6 +58,19 @@ const OTHER_SOURCES = [
       // Mixed-brand category (Lorcana, Topps, sleeves), so keep the Pokemon keyword filter on.
       categoryPaths: ['/shop/toys-games-puzzles/collectables-trading-cards/trading-cards'],
       requireKeyword: true,
+    },
+  },
+  {
+    key: 'warehouse',
+    name: 'The Warehouse',
+    adapterKey: 'warehouse',
+    schema: warehouseConfigSchema,
+    config: {
+      baseUrl: 'https://www.thewarehouse.co.nz',
+      // Pokemon-only category, so no keyword filter needed. Product pages are Cloudflare-protected;
+      // the category page carries price and the "Find in-store" (not orderable online) badge.
+      categoryPaths: ['/c/official-merchandise/pok%C3%A9mon/pokemon-trading-cards'],
+      requireKeyword: false,
     },
   },
 ];
