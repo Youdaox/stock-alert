@@ -49,6 +49,11 @@ const EXCLUDED_TAGS = new Set([
   'video games',
   'nintendo switch',
   'plush',
+  'action figures',
+  'action battling',
+  'figures',
+  'figures & playsets',
+  'figures and playsets',
 ]);
 
 const EXCLUDED_PRODUCT_TYPE_WORDS = [

@@ -33,6 +33,16 @@ const SHOPIFY_SOURCES = [
       requireKeyword: false,
     },
   },
+  {
+    key: 'toyworld',
+    name: 'Toyworld',
+    config: {
+      baseUrl: 'https://www.toyworld.co.nz',
+      // Mixed-brand collection (Lorcana, Topps, sleeves), so keep the Pokemon keyword filter on.
+      collections: ['trading-cards'],
+      requireKeyword: true,
+    },
+  },
 ];
 
 const config = loadConfig();
