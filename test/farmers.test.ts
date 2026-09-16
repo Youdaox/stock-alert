@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseFarmersJsonLd } from '../src/adapters/farmers.js';
+import { looksLikeDenyPage, parseFarmersJsonLd } from '../src/adapters/farmers.js';
 
 const pageUrl = 'https://www.farmers.co.nz/toys/games-cards-puzzles/trading-cards/pokemon-mega-greninja-7054158';
 
@@ -54,5 +54,19 @@ describe('parseFarmersJsonLd', () => {
     expect(parseFarmersJsonLd([websiteBlock], pageUrl)).toBeNull();
     expect(parseFarmersJsonLd(['{not json'], pageUrl)).toBeNull();
     expect(parseFarmersJsonLd([], pageUrl)).toBeNull();
+  });
+});
+
+describe('looksLikeDenyPage', () => {
+  it('recognises the pages a blocked request gets back with HTTP 200', () => {
+    expect(looksLikeDenyPage('Farmers', 'Farmers.co.nz is temporarily down We are working to get it back up')).toBe(
+      true,
+    );
+    expect(looksLikeDenyPage('Access Denied', "You don't have permission to access this server")).toBe(true);
+    expect(looksLikeDenyPage('Just a moment...', 'Performing security verification')).toBe(true);
+  });
+
+  it('does not mistake a real product page for a deny page', () => {
+    expect(looksLikeDenyPage('Pokemon Trading Card Mega Greninja Ex Prem Coll', 'ADD TO CART $99.99')).toBe(false);
   });
 });

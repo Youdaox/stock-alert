@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import { chromium } from 'playwright';
 import { z } from 'zod';
 
@@ -29,6 +31,9 @@ export const farmersConfigSchema = z.object({
   /** The user wants the window visible; a headless Chrome is also more likely to be blocked. */
   headless: z.boolean().default(false),
   requireKeyword: z.boolean().default(false),
+  /** A kept profile behaves more like a returning visitor than a cold one. */
+  profileDir: z.string().default('.browser-profiles/farmers'),
+  renderTimeoutMs: z.number().int().positive().default(20_000),
 });
 
 export type FarmersConfig = z.infer<typeof farmersConfigSchema>;
@@ -52,6 +57,17 @@ const jsonLdProductSchema = z.object({
 export interface FarmersProduct {
   product: ProductRecord;
   observation: StockObservation;
+}
+
+/** The WAF failover and challenge pages answer 200, so they have to be recognised by content. */
+export function looksLikeDenyPage(title: string, text: string): boolean {
+  const haystack = `${title} ${text}`.toLowerCase();
+  return (
+    haystack.includes('access denied') ||
+    haystack.includes('temporarily down') ||
+    haystack.includes('just a moment') ||
+    haystack.includes('security verification')
+  );
 }
 
 /** Reads the product out of a page's JSON-LD blocks. Returns null when there is no product block. */
@@ -101,26 +117,31 @@ export class FarmersAdapter implements Adapter {
     const products: ProductRecord[] = [];
     const observations: StockObservation[] = [];
 
-    const browser = await chromium.launch({
+    const context = await chromium.launchPersistentContext(path.resolve(config.profileDir), {
       channel: 'chrome',
       headless: config.headless,
       ignoreDefaultArgs: ['--enable-automation'],
       args: ['--disable-blink-features=AutomationControlled'],
+      locale: 'en-NZ',
+      timezoneId: 'Pacific/Auckland',
+      viewport: { width: 1280, height: 900 },
     });
 
+    let blocked = 0;
+
     try {
-      const context = await browser.newContext({
-        locale: 'en-NZ',
-        timezoneId: 'Pacific/Auckland',
-        viewport: { width: 1280, height: 900 },
-      });
-      const page = await context.newPage();
+      let page = context.pages()[0] ?? (await context.newPage());
 
       for (const productPath of config.productPaths) {
         const url = `${config.baseUrl}${productPath}`;
         await new Promise((resolve) => setTimeout(resolve, config.requestDelayMs));
 
         try {
+          // The window is visible, so it can be closed mid-check; open a fresh tab if that happened.
+          if (page.isClosed()) {
+            page = await context.newPage();
+          }
+
           const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: config.pageTimeoutMs });
           const status = response?.status() ?? 0;
           if (status !== 200) {
@@ -128,13 +149,28 @@ export class FarmersAdapter implements Adapter {
             continue;
           }
 
-          const blocks = await page.evaluate(() =>
-            [...document.querySelectorAll('script[type="application/ld+json"]')].map((node) => node.textContent ?? ''),
-          );
+          // The page fills in its JSON-LD after load, so wait for it rather than reading too early.
+          await page.waitForLoadState('networkidle', { timeout: config.renderTimeoutMs }).catch(() => {});
+          await page
+            .waitForSelector('script[type="application/ld+json"]', { timeout: config.renderTimeoutMs })
+            .catch(() => {});
+
+          const { blocks, title, text } = await page.evaluate(() => ({
+            blocks: [...document.querySelectorAll('script[type="application/ld+json"]')].map(
+              (node) => node.textContent ?? '',
+            ),
+            title: document.title,
+            text: (document.body.innerText ?? '').replace(/\s+/g, ' ').slice(0, 200),
+          }));
 
           const parsed = parseFarmersJsonLd(blocks, url);
           if (!parsed) {
-            ctx.logger.warn({ url }, 'farmers: no product JSON-LD on the page');
+            if (looksLikeDenyPage(title, text)) {
+              blocked += 1;
+              ctx.logger.warn({ url, title }, 'farmers: blocked by the site (deny page served with HTTP 200)');
+            } else {
+              ctx.logger.warn({ url, title, text, blocks: blocks.length }, 'farmers: no product JSON-LD on the page');
+            }
             continue;
           }
           if (!isPokemonSealed({ title: parsed.product.title, tags: [] }, { requireKeyword: config.requireKeyword })) {
@@ -149,11 +185,13 @@ export class FarmersAdapter implements Adapter {
         }
       }
     } finally {
-      await browser.close();
+      await context.close();
     }
 
     if (products.length === 0) {
-      throw new Error('Farmers check returned no products; every product page failed');
+      throw new Error(
+        `Farmers check returned no products (${config.productPaths.length} pages tried, ${blocked} blocked)`,
+      );
     }
 
     return { products, locations: [ONLINE_LOCATION], observations };
