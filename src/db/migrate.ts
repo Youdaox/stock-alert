@@ -1,23 +1,15 @@
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { Client } from 'pg';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
 
-async function main(): Promise<void> {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    throw new Error('DATABASE_URL is required');
-  }
+import { loadConfig } from '../config.js';
+import { createDb } from './client.js';
 
-  const client = new Client({ connectionString });
-  await client.connect();
+const config = loadConfig();
+const { db, pool } = createDb(config.DATABASE_URL);
 
-  drizzle(client);
-
-  // TODO: wire drizzle migrations once SQL migration files are generated.
-  await client.end();
-}
-
-main().catch((error) => {
+try {
+  await migrate(db, { migrationsFolder: 'drizzle' });
   // eslint-disable-next-line no-console
-  console.error(error);
-  process.exitCode = 1;
-});
+  console.log('migrations applied');
+} finally {
+  await pool.end();
+}
