@@ -1,63 +1,62 @@
 # stock-alert
 
-TypeScript stock-monitoring worker scaffold with strict typing, stubbed adapters, and event pipeline primitives.
+Tracks Pokémon TCG sealed product stock across New Zealand stores, shows it on a local website, and posts restocks to Discord.
+
+Currently tracked (Shopify stores): The Game Tree, Card Masters, Booster Games. Kmart NZ is planned; see `test/fixtures/kmart-nz/` for the captured API shapes.
 
 ## Stack
 
-- Node.js 20+
-- TypeScript (strict)
+- Node.js 20+ and TypeScript (strict)
 - pnpm
-- Drizzle ORM + Postgres
-- node-cron
-- undici
-- zod
-- pino
-- vitest
+- Postgres with Drizzle ORM
+- Fastify for the website and JSON API
+- node-cron, undici, zod, pino, vitest
 
 ## Quick start
 
-1. Install dependencies:
-   - `pnpm install`
-2. Copy env file:
-   - `cp .env.example .env`
-3. Start local Postgres:
-   - `docker compose up -d`
-4. Run tests:
-   - `pnpm test`
-5. Run dev worker:
-   - `pnpm dev`
+1. Install dependencies: `pnpm install`
+2. Create `.env` from `.env.example` and set `DATABASE_URL` (and `DISCORD_WEBHOOK_URL` for alerts).
+3. Have Postgres running with an empty `stock_alert` database. Either use a local Postgres install (`createdb stock_alert`) or `docker compose up -d`.
+4. Create the tables: `pnpm db:migrate`
+5. Add the stores: `pnpm db:seed`
+6. Start the tracker and website: `pnpm dev`, then open http://127.0.0.1:3100
 
-## Windows-friendly scripts
+The first check of each store records a baseline without sending alerts. After that, new listings, restocks and price drops go to Discord and the Activity tab.
 
-All scripts in `package.json` are shell-agnostic and work in PowerShell/CMD with pnpm.
+## Scripts
 
-## Project layout
+| Script | What it does |
+| --- | --- |
+| `pnpm dev` | Runs the tracker and website from source |
+| `pnpm build` / `pnpm start` | Compiles to `dist/` and runs the compiled build |
+| `pnpm test` | Runs the unit tests |
+| `pnpm typecheck` | Type-checks without emitting |
+| `pnpm db:generate` | Generates a migration after editing `src/db/schema.ts` |
+| `pnpm db:migrate` | Applies migrations |
+| `pnpm db:seed` | Inserts or updates the tracked stores |
+
+## Adding a Shopify store
+
+Add an entry to `src/db/seed.ts` with the store's base URL and the handles of its Pokémon collections (find them at `https://<store>/collections.json`), then run `pnpm db:seed`. Set `requireKeyword: true` if a collection mixes Pokémon with other products.
+
+## How it works
 
 ```text
 src/
-  adapters/
-    types.ts
-    shopify.ts
-    index.ts
-  db/
-    schema.ts
-    migrate.ts
+  adapters/   store integrations (Shopify) returning products, locations and stock observations
   core/
-    poller.ts
-    differ.ts
-    dedupe.ts
-    http.ts
-  notify/
-    discord.ts
-    queue.ts
-  config.ts
-  index.ts
+    catalog.ts     sealed-product filter, category and language detection
+    differ.ts      pure change detection (new listing, restock, sold out, price drop)
+    record-run.ts  saves a check and queues alerts in one transaction
+    poller.ts      schedules checks, guards against partial results
+    http.ts        request delay, timeout, retries with backoff and Retry-After
+  notify/     Discord formatting and the outbox dispatcher
+  web/        Fastify API
+  db/         Drizzle schema, migrations runner, seed
+public/       website (HTML, CSS, JS)
 ```
 
-## Notes
-
-- Adapter and migration logic are intentionally stubbed with TODOs.
-- `differ` is pure (`prev`, `next`) => `Event[]` and covered by tests.
-- Poller includes a partial-failure guard that skips writes when a source returns fewer than 50% of previous snapshot count.
-- Outbound network calls should use `requestWithPolicy` for delay, User-Agent, and exponential backoff behavior.
-- SIGTERM/SIGINT handlers are wired for graceful shutdown.
+- A product missing from a check is not treated as sold out.
+- Checks that return under half the usual number of products are not saved.
+- Alerts are written to a `notifications` table first and sent from there, so they survive restarts.
+- Restock alerts for the same product are limited to one per `RESTOCK_ALERT_COOLDOWN_HOURS`.
