@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en-NZ">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NZ Pokémon Stock</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo" aria-hidden="true"></span>
+        <div>
+          <h1>NZ Pokémon Stock</h1>
+          <p class="subtle" id="updated">Loading…</p>
+        </div>
+      </div>
+      <nav class="tabs" role="tablist" aria-label="Views">
+        <button type="button" role="tab" aria-selected="true" data-tab="products">Products</button>
+        <button type="button" role="tab" aria-selected="false" data-tab="activity">Activity</button>
+      </nav>
+    </header>
+
+    <main>
+      <section class="stores" id="stores" aria-label="Stores"></section>
+
+      <section id="products-panel" aria-label="Products">
+        <form class="filters" id="filters" autocomplete="off">
+          <input type="search" name="q" placeholder="Search, e.g. Prismatic ETB" aria-label="Search products" />
+          <select name="store" aria-label="Store">
+            <option value="">All stores</option>
+          </select>
+          <select name="category" aria-label="Product type">
+            <option value="">All product types</option>
+            <option value="ETB">Elite Trainer Boxes</option>
+            <option value="BOOSTER_BOX">Booster boxes</option>
+            <option value="BOOSTER_BUNDLE">Booster bundles</option>
+            <option value="BOOSTER_PACK">Packs &amp; blisters</option>
+            <option value="COLLECTION">Collection boxes</option>
+            <option value="TIN">Tins</option>
+            <option value="DECK">Decks</option>
+            <option value="OTHER">Other</option>
+          </select>
+          <select name="language" aria-label="Language">
+            <option value="">All languages</option>
+            <option value="EN">English</option>
+            <option value="JP">Japanese</option>
+          </select>
+          <select name="sort" aria-label="Sort">
+            <option value="changed">Recently changed</option>
+            <option value="new">Newest listings</option>
+            <option value="price-asc">Price: low to high</option>
+            <option value="price-desc">Price: high to low</option>
+            <option value="name">Name</option>
+          </select>
+          <label class="toggle">
+            <input type="checkbox" name="inStock" checked />
+            In stock only
+          </label>
+        </form>
+        <p class="count subtle" id="count"></p>
+        <div class="grid" id="grid"></div>
+      </section>
+
+      <section id="activity-panel" aria-label="Activity" hidden>
+        <div class="chips" id="kind-filter" role="group" aria-label="Filter activity">
+          <button type="button" class="chip-button" aria-pressed="true" data-kind="ALL">All</button>
+          <button type="button" class="chip-button" aria-pressed="false" data-kind="RESTOCK">Back in stock</button>
+          <button type="button" class="chip-button" aria-pressed="false" data-kind="NEW_PRODUCT">New listings</button>
+          <button type="button" class="chip-button" aria-pressed="false" data-kind="PRICE_DROP">Price drops</button>
+          <button type="button" class="chip-button" aria-pressed="false" data-kind="SOLD_OUT">Sold out</button>
+        </div>
+        <ol class="feed" id="feed"></ol>
+      </section>
+    </main>
+  </body>
+</html>
