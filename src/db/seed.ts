@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 
+import { farmersConfigSchema } from '../adapters/farmers.js';
 import { paperPlusConfigSchema } from '../adapters/paperplus.js';
 import { shopifyConfigSchema } from '../adapters/shopify.js';
 import { warehouseConfigSchema } from '../adapters/warehouse.js';
@@ -71,6 +72,28 @@ const OTHER_SOURCES = [
       // the category page carries price and the "Find in-store" (not orderable online) badge.
       categoryPaths: ['/c/official-merchandise/pok%C3%A9mon/pokemon-trading-cards'],
       requireKeyword: false,
+    },
+  },
+  {
+    key: 'farmers',
+    name: 'Farmers',
+    adapterKey: 'farmers',
+    schema: farmersConfigSchema,
+    config: {
+      baseUrl: 'https://www.farmers.co.nz',
+      // Search and listing pages are WAF-denied, so stock is checked on known product pages.
+      productPaths: [
+        '/toys/games-cards-puzzles/trading-cards/pokemon-trading-card-mega-greninja-ex-prem-coll-7054158',
+        '/toys/games-cards-puzzles/pokemon-trading-card-2024-collectors-chest-6910577',
+        '/toys/games-cards-puzzles/pokemon-trading-card-combined-powers-premium-collection-6884614',
+        '/toys/games-cards-puzzles/pokemon-trading-card-terapagoes-ex-ultra-premium-collection-6930892',
+        '/toys/games-cards-puzzles/pokemon-trading-card-paldea-legends-tin-assorted-6812945',
+        '/toys/games-cards-puzzles/pokemon-trading-card-paldea-partners-tin-assorted-6843905',
+        '/toys/games-cards-puzzles/pokemon-trading-card-scarlet-violet-4-paradox-rift-3-pack-assorted-6853145',
+        '/toys/games-cards-puzzles/pokemon-trading-card-tcg-scarlet-violet-blister-assorted-6801517',
+      ],
+      // Each check opens a visible Chrome window, so keep it well apart from the 5-minute cron.
+      minIntervalMinutes: 30,
     },
   },
 ];

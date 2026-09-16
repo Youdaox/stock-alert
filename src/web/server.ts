@@ -112,7 +112,8 @@ export async function createWebServer({ db, logger, poller }: WebDeps) {
       return reply.code(404).send({ error: 'source not found' });
     }
 
-    void poller.pollSource(source);
+    // Pressing the button should check now, even for sources with a minimum interval.
+    void poller.pollSource(source, { force: true });
     return reply.code(202).send({ queued: true });
   });
 

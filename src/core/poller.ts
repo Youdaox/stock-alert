@@ -66,11 +66,15 @@ export class Poller {
     return this.inFlight.has(sourceId);
   }
 
-  public async pollSource(source: Source): Promise<void> {
+  public async pollSource(source: Source, options: { force?: boolean } = {}): Promise<void> {
     const { db, logger } = this.deps;
 
     if (this.inFlight.has(source.id)) {
       logger.info({ source: source.key }, 'source is already being checked');
+      return;
+    }
+
+    if (!options.force && this.checkedRecently(source)) {
       return;
     }
 
@@ -116,6 +120,25 @@ export class Poller {
   public async stop(): Promise<void> {
     await this.task?.stop();
     await this.cycle;
+  }
+
+  /** Sources can ask to be checked less often than the cron runs, e.g. browser-driven ones. */
+  private checkedRecently(source: Source): boolean {
+    const minIntervalMinutes = Number((source.config as { minIntervalMinutes?: unknown }).minIntervalMinutes ?? 0);
+    if (!Number.isFinite(minIntervalMinutes) || minIntervalMinutes <= 0 || !source.lastSuccessAt) {
+      return false;
+    }
+
+    const dueAt = source.lastSuccessAt.getTime() + minIntervalMinutes * 60_000;
+    if (Date.now() >= dueAt) {
+      return false;
+    }
+
+    this.deps.logger.debug(
+      { source: source.key, minIntervalMinutes },
+      'skipping source; checked within its minimum interval',
+    );
+    return true;
   }
 
   private async pollEnabledSources(): Promise<void> {
