@@ -53,6 +53,8 @@ describe('isPokemonSealed', () => {
     'Charizard Metal - PCG 9',
     '**CLEARANCE** Monopoly: Pokémon Edition',
     'Guess Who? Pokemon Edition',
+    'Pokemon Trainer Guess - Kanto Edition',
+    'Pokemon Trainer Guess Electronic Guessing Game Sinnoh Edition',
   ])('drops accessories, toys, bulk lots and graded cards: %s', (title) => {
     expect(isPokemonSealed({ title, tags: [] }, collection)).toBe(false);
   });

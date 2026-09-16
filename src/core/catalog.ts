@@ -93,6 +93,9 @@ const EXCLUDED_TITLE_PATTERNS = [
   // Toys, board games and bulk card lots.
   /\bmonopoly\b/,
   /\bguess who\b/,
+  /\btrainer guess\b/,
+  /\bguessing game\b/,
+  /\belectronic\b/,
   /\blego\b/,
   /\bmega (bloks|construx)\b/,
   /\bplush\b/,

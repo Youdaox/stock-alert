@@ -2,7 +2,15 @@
 
 Tracks Pokémon TCG sealed product stock across New Zealand stores, shows it on a local website, and posts restocks to Discord.
 
-Currently tracked (Shopify stores): The Game Tree, Card Masters, Booster Games. Kmart NZ is planned; see `test/fixtures/kmart-nz/` for the captured API shapes.
+Currently tracked:
+
+| Store | How it is read |
+| --- | --- |
+| The Game Tree, Card Masters, Booster Games | Shopify `/products.json` collections |
+| Paper Plus | Listing pages parsed as HTML (browser user agent; it refuses bots) |
+| The Warehouse | Category pages fetched through curl (Cloudflare rejects undici); "Find in-store" means not orderable online |
+
+Toyworld was checked and disabled: it sells no Pokémon TCG online. Kmart NZ and Farmers are not tracked yet — both sit behind bot protection; see `test/fixtures/kmart-nz/` for the captured Kmart API shapes.
 
 ## Stack
 
