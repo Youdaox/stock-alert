@@ -1,0 +1,13 @@
+query getFindInStore($input: FindInStoresQueryInput!) {
+  findInStores(input: $input) {
+    keycode
+    inventory {
+      locationName
+      locationId
+      stockLevel
+      phoneNumber
+      __typename
+    }
+    __typename
+  }
+}

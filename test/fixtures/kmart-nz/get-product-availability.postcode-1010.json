@@ -1,0 +1,116 @@
+{
+  "_note": "getProductAvailability captured from a kmart.co.nz product page (POST https://api.kmart.co.nz/gateway/graphql). Query text omitted from request; see the variables for the input shape.",
+  "request": {
+    "operationName": "getProductAvailability",
+    "variables": {
+      "input": {
+        "country": "NZ",
+        "postcode": "1010",
+        "products": [
+          {
+            "keycode": "43788767",
+            "quantity": 1,
+            "isNationalInventory": true,
+            "isClickAndCollectOnly": false,
+            "isPreOrderActive": false,
+            "isExcludedFromFreeShipping": false,
+            "isOnlineExclusiveOnly": false,
+            "isFlatRateItem": false,
+            "deadWeight": "0.0420",
+            "dimensions": "{\"length\":{\"uom\":\"MTR\",\"value\":0.01},\"height\":{\"value\":0.17,\"uom\":\"MTR\"},\"weight\":{\"value\":0.03825,\"uom\":\"KGM\"},\"width\":{\"uom\":\"MTR\",\"value\":0.09}}"
+          }
+        ],
+        "fulfilmentMethods": ["HOME_DELIVERY", "CLICK_AND_COLLECT", "EXPRESS_DELIVERY"],
+        "amendNearestInStockCnc": true,
+        "limit": 3
+      }
+    }
+  },
+  "response": {
+    "data": {
+      "getProductAvailability": {
+        "postcode": "1010",
+        "country": "NZ",
+        "region": "METRO",
+        "availability": {
+          "HOME_DELIVERY": [
+            {
+              "keycode": "43788767",
+              "poolName": "HENDERSON-NZNTH-STLUKES-NZNTH",
+              "stock": {
+                "available": 277,
+                "__typename": "Stock"
+              },
+              "__typename": "HomeDeliveryProductAvailabilityModel"
+            }
+          ],
+          "CLICK_AND_COLLECT": [
+            {
+              "keycode": "43788767",
+              "stock": {
+                "totalAvailable": 1048,
+                "__typename": "TotalCncStock"
+              },
+              "locations": [
+                {
+                  "fulfilment": {
+                    "isBuddyLocation": false,
+                    "locationId": "8229",
+                    "stock": {
+                      "available": 683,
+                      "__typename": "CncStock"
+                    },
+                    "__typename": "Fulfilment"
+                  },
+                  "location": {
+                    "locationId": "8229",
+                    "__typename": "CncLocation"
+                  },
+                  "__typename": "CncLocations"
+                },
+                {
+                  "fulfilment": {
+                    "isBuddyLocation": false,
+                    "locationId": "8212",
+                    "stock": {
+                      "available": 170,
+                      "__typename": "CncStock"
+                    },
+                    "__typename": "Fulfilment"
+                  },
+                  "location": {
+                    "locationId": "8212",
+                    "__typename": "CncLocation"
+                  },
+                  "__typename": "CncLocations"
+                },
+                {
+                  "fulfilment": {
+                    "isBuddyLocation": false,
+                    "locationId": "8213",
+                    "stock": {
+                      "available": 195,
+                      "__typename": "CncStock"
+                    },
+                    "__typename": "Fulfilment"
+                  },
+                  "location": {
+                    "locationId": "8213",
+                    "__typename": "CncLocation"
+                  },
+                  "__typename": "CncLocations"
+                }
+              ],
+              "__typename": "CncKeycode"
+            }
+          ],
+          "IN_STORE": null,
+          "EXPRESS_DELIVERY": [],
+          "HOME_DELIVERY_PLP": null,
+          "__typename": "FulfilmentOptions"
+        },
+        "__typename": "ProductAvailabilityModel"
+      }
+    }
+  }
+}

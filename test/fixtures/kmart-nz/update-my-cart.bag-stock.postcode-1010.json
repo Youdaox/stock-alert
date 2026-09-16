@@ -1,0 +1,132 @@
+{
+  "_note": "Trimmed updateMyCart response captured from kmart.co.nz checkout (Click & Collect, postcode 1010). Cart id replaced; unrelated cart fields and some variant attributes removed. Values are otherwise unmodified.",
+  "response": {
+    "data": {
+      "updateMyCart": {
+        "id": "00000000-0000-0000-0000-000000000000",
+        "version": 21,
+        "country": "NZ",
+        "fulfillmentMethod": "click_and_collect",
+        "selectedCncStoreId": "8212",
+        "postcodeSelector": {
+          "postalCode": "1010",
+          "state": "NI",
+          "city": "AUCKLAND CENTRAL",
+          "country": "NZ",
+          "__typename": "PostcodeSelectorDraft"
+        },
+        "totalPrice": { "centAmount": 1050, "__typename": "Money" },
+        "bagStockAvailability": {
+          "BUCKET_INFO": {
+            "HOME_DELIVERY": null,
+            "EXPRESS_DELIVERY": null,
+            "CLICK_AND_COLLECT": [
+              {
+                "bucketType": "OOS",
+                "logisticOrders": [
+                  {
+                    "earliestDeliveryDate": "",
+                    "items": [
+                      {
+                        "offerId": "NA",
+                        "reasonCode": "OutOfStock",
+                        "sku": "43756032",
+                        "__typename": "BucketItem"
+                      }
+                    ],
+                    "latestDeliveryDate": "",
+                    "sellerName": "OOS",
+                    "shippingFee": 0,
+                    "__typename": "LogisticOrder"
+                  }
+                ],
+                "__typename": "ClickCollectBucket"
+              }
+            ],
+            "__typename": "BagStockAvailabilityBucketModel"
+          },
+          "HOME_DELIVERY": null,
+          "CLICK_AND_COLLECT": {
+            "stores": [
+              {
+                "locationId": "8229",
+                "distanceInKm": 16.6,
+                "publicName": "Sylvia Park Nz ",
+                "totalAvailableProducts": { "express": 0, "nonExpress": 0, "__typename": "TotalAvailableProducts" },
+                "items": {
+                  "express": [
+                    { "keyCode": "43756032", "stock": 0, "fulfilmentLocationId": "8229", "__typename": "BagItem" }
+                  ],
+                  "nonExpress": [],
+                  "__typename": "BagItems"
+                },
+                "__typename": "BagStockCcStoreModel"
+              },
+              {
+                "locationId": "8212",
+                "distanceInKm": 16.73,
+                "publicName": "Albany NZ",
+                "totalAvailableProducts": { "express": 0, "nonExpress": 0, "__typename": "TotalAvailableProducts" },
+                "items": {
+                  "express": [
+                    { "keyCode": "43756032", "stock": 0, "fulfilmentLocationId": "8212", "__typename": "BagItem" }
+                  ],
+                  "nonExpress": [],
+                  "__typename": "BagItems"
+                },
+                "__typename": "BagStockCcStoreModel"
+              },
+              {
+                "locationId": "8213",
+                "distanceInKm": 17.8,
+                "publicName": "Botany",
+                "totalAvailableProducts": { "express": 0, "nonExpress": 0, "__typename": "TotalAvailableProducts" },
+                "items": {
+                  "express": [
+                    { "keyCode": "43756032", "stock": 0, "fulfilmentLocationId": "8213", "__typename": "BagItem" }
+                  ],
+                  "nonExpress": [],
+                  "__typename": "BagItems"
+                },
+                "__typename": "BagStockCcStoreModel"
+              }
+            ],
+            "__typename": "BagStockAvailabilityCcModel"
+          },
+          "EXPRESS_DELIVERY": null,
+          "__typename": "BagStockAvailabilityModel"
+        },
+        "lineItems": [
+          {
+            "id": "d1319fee-cde7-4f50-9fe0-7a0505d606e2",
+            "name": "Pokemon Trading Card Game: Mega Evolution - Chaos Rising Sleeved Booster - Assorted",
+            "quantity": 1,
+            "price": { "value": { "centAmount": 1050, "__typename": "Money" }, "__typename": "LineItemPrice" },
+            "variant": {
+              "id": "1",
+              "sku": "43756032",
+              "attributes": [
+                { "name": "FulfilmentChannelNZ", "value": "3", "__typename": "VariantAttribute" },
+                { "name": "SaleDateTimeNZ", "value": "10/06/2026 02:00:00", "__typename": "VariantAttribute" },
+                { "name": "KeycodeStatusNZ", "value": "Seasonal", "__typename": "VariantAttribute" },
+                { "name": "MerchDepartment", "value": "047", "__typename": "VariantAttribute" },
+                { "name": "NationalInventoryNZ", "value": "true", "__typename": "VariantAttribute" },
+                { "name": "PrimaryCategoryNZ", "value": "NZ_Pokemon Trading Cards", "__typename": "VariantAttribute" },
+                { "name": "ItemLimit", "value": "", "__typename": "VariantAttribute" },
+                { "name": "PreOrderReleaseDate", "value": "", "__typename": "VariantAttribute" },
+                { "name": "IsPreOrderActive", "value": "false", "__typename": "VariantAttribute" },
+                { "name": "ParentProductKey", "value": "P_43756032", "__typename": "VariantAttribute" },
+                { "name": "StartDateNZ", "value": "2026-05-20", "__typename": "VariantAttribute" },
+                { "name": "EndDateNZ", "value": "9999-12-31", "__typename": "VariantAttribute" },
+                { "name": "Brand", "value": "Pokemon", "__typename": "VariantAttribute" },
+                { "name": "APN", "value": "196214140424", "__typename": "VariantAttribute" }
+              ],
+              "__typename": "ProductVariant"
+            },
+            "__typename": "LineItem"
+          }
+        ]
+      }
+    }
+  }
+}

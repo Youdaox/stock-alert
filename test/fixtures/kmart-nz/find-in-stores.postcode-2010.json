@@ -1,0 +1,59 @@
+{
+  "request": {
+    "operationName": "getFindInStore",
+    "variables": {
+      "input": {
+        "postcode": "2010",
+        "country": "NZ",
+        "keycodes": ["43788767"]
+      }
+    }
+  },
+  "response": {
+    "data": {
+      "findInStores": [
+        {
+          "keycode": "43788767",
+          "inventory": [
+            {
+              "locationName": "Sylvia Park Nz ",
+              "locationId": 8229,
+              "stockLevel": "High",
+              "phoneNumber": "+64 9 573 9200",
+              "__typename": "StockLevelResultModel"
+            },
+            {
+              "locationName": "Botany",
+              "locationId": 8213,
+              "stockLevel": "High",
+              "phoneNumber": "+64 9 265 3800",
+              "__typename": "StockLevelResultModel"
+            },
+            {
+              "locationName": "Papatoetoe",
+              "locationId": 8205,
+              "stockLevel": "High",
+              "phoneNumber": "+64 9 250 5200",
+              "__typename": "StockLevelResultModel"
+            },
+            {
+              "locationName": "Manukau",
+              "locationId": 8234,
+              "stockLevel": "High",
+              "phoneNumber": "+64 9 261 8900",
+              "__typename": "StockLevelResultModel"
+            },
+            {
+              "locationName": "St Lukes",
+              "locationId": 8204,
+              "stockLevel": "High",
+              "phoneNumber": "+64 9 849 9400",
+              "__typename": "StockLevelResultModel"
+            }
+          ],
+          "__typename": "FindInStoresResultModel"
+        }
+      ]
+    }
+  }
+}
