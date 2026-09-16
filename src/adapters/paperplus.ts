@@ -116,6 +116,11 @@ export class PaperPlusAdapter implements Adapter {
         const response = await requestWithPolicy(url, { headers }, http);
 
         if (!response.ok) {
+          // Paging past the last page answers 500 rather than an empty listing.
+          if (page > 1) {
+            ctx.logger.info({ url, status: response.status }, 'paperplus: stopping at the last page');
+            break;
+          }
           throw new Error(`Paper Plus request failed: HTTP ${response.status} for ${url}`);
         }
 

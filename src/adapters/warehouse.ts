@@ -2,7 +2,7 @@ import { parse } from 'node-html-parser';
 import { z } from 'zod';
 
 import { isPokemonSealed } from '../core/catalog.js';
-import { requestWithPolicy } from '../core/http.js';
+import { curlText } from '../core/curl.js';
 import type {
   Adapter,
   AdapterContext,
@@ -103,7 +103,6 @@ export class WarehouseAdapter implements Adapter {
 
   public async fetch(rawConfig: unknown, ctx: AdapterContext): Promise<AdapterResult> {
     const config = warehouseConfigSchema.parse(rawConfig);
-    const http = { ...ctx.http, delayMs: config.requestDelayMs, userAgent: config.userAgent };
     const headers = {
       accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'accept-language': 'en-NZ,en;q=0.9',
@@ -115,13 +114,20 @@ export class WarehouseAdapter implements Adapter {
 
     for (const categoryPath of config.categoryPaths) {
       const url = `${config.baseUrl}${categoryPath}?sz=${config.pageSize}`;
-      const response = await requestWithPolicy(url, { headers }, http);
+      await new Promise((resolve) => setTimeout(resolve, config.requestDelayMs));
 
-      if (!response.ok) {
+      // Cloudflare rejects undici here by its TLS fingerprint, so this source goes through curl.
+      const response = await curlText(url, {
+        userAgent: config.userAgent,
+        headers,
+        timeoutMs: ctx.http.timeoutMs,
+      });
+
+      if (response.status !== 200) {
         throw new Error(`The Warehouse request failed: HTTP ${response.status} for ${url}`);
       }
 
-      const parsed = parseWarehouseListing(config, await response.text());
+      const parsed = parseWarehouseListing(config, response.body);
       if (parsed.tileCount === 0) {
         ctx.logger.warn({ url }, 'warehouse category returned no product tiles; markup may have changed');
       }
