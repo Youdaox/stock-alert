@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 
+import { paperPlusConfigSchema } from '../adapters/paperplus.js';
 import { shopifyConfigSchema } from '../adapters/shopify.js';
 import { loadConfig } from '../config.js';
 import { createDb } from './client.js';
@@ -45,14 +46,35 @@ const SHOPIFY_SOURCES = [
   },
 ];
 
+const OTHER_SOURCES = [
+  {
+    key: 'paperplus',
+    name: 'Paper Plus',
+    adapterKey: 'paperplus',
+    schema: paperPlusConfigSchema,
+    config: {
+      baseUrl: 'https://www.paperplus.co.nz',
+      // Mixed-brand category (Lorcana, Topps, sleeves), so keep the Pokemon keyword filter on.
+      categoryPaths: ['/shop/toys-games-puzzles/collectables-trading-cards/trading-cards'],
+      requireKeyword: true,
+    },
+  },
+];
+
 const config = loadConfig();
 const { db, pool } = createDb(config.DATABASE_URL);
 
 try {
-  const rows = SHOPIFY_SOURCES.map((source) => {
-    shopifyConfigSchema.parse(source.config);
-    return { ...source, adapterKey: 'shopify' };
-  });
+  const rows = [
+    ...SHOPIFY_SOURCES.map((source) => {
+      shopifyConfigSchema.parse(source.config);
+      return { ...source, adapterKey: 'shopify' };
+    }),
+    ...OTHER_SOURCES.map(({ schema, ...source }) => {
+      schema.parse(source.config);
+      return source;
+    }),
+  ];
 
   await db
     .insert(sources)
