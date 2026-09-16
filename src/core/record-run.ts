@@ -8,6 +8,32 @@ import { differ, stockKey, type DiffObservation, type EventKind, type StockSnaps
 
 export const ALERT_KINDS: ReadonlySet<EventKind> = new Set(['NEW_PRODUCT', 'RESTOCK', 'PRICE_DROP']);
 
+export interface AlertCandidate {
+  id: number;
+  kind: EventKind;
+  productId: number;
+  locationId: number | null;
+}
+
+const alertKey = (event: Pick<AlertCandidate, 'productId' | 'locationId'>): string =>
+  `${event.productId}:${event.locationId ?? 'none'}`;
+
+/**
+ * Picks the events worth alerting on: skips restocks inside the cooldown, and folds a price drop
+ * into the restock alert for the same product rather than sending two messages.
+ */
+export function selectAlertableEvents(
+  events: readonly AlertCandidate[],
+  recentlyRestockedProductIds: ReadonlySet<number>,
+): AlertCandidate[] {
+  const kept = events.filter(
+    (event) => ALERT_KINDS.has(event.kind) && !(event.kind === 'RESTOCK' && recentlyRestockedProductIds.has(event.productId)),
+  );
+  const restocked = new Set(kept.filter((event) => event.kind === 'RESTOCK').map(alertKey));
+
+  return kept.filter((event) => !(event.kind === 'PRICE_DROP' && restocked.has(alertKey(event))));
+}
+
 export interface RecordRunOptions {
   channels: readonly string[];
   restockCooldownHours: number;
@@ -226,11 +252,14 @@ export async function recordRun(
       const inserted = await tx
         .insert(stockEvents)
         .values(batch)
-        .returning({ id: stockEvents.id, kind: stockEvents.kind, productId: stockEvents.productId });
+        .returning({
+          id: stockEvents.id,
+          kind: stockEvents.kind,
+          productId: stockEvents.productId,
+          locationId: stockEvents.locationId,
+        });
 
-      const alertable = inserted.filter(
-        (event) => ALERT_KINDS.has(event.kind) && !(event.kind === 'RESTOCK' && recentlyRestocked.has(event.productId)),
-      );
+      const alertable = selectAlertableEvents(inserted, recentlyRestocked);
       const notificationValues = alertable.flatMap((event) =>
         options.channels.map((channel) => ({ eventId: event.id, channel })),
       );

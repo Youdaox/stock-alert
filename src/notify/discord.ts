@@ -42,10 +42,12 @@ export function formatEmbed(alert: AlertDetails): DiscordEmbed {
     alert.locationName && alert.locationName !== 'Online'
       ? `${alert.storeName} — ${alert.locationName}`
       : alert.storeName;
-  const price =
-    alert.kind === 'PRICE_DROP' && alert.prevPriceCents !== null
-      ? `~~${formatNzd(alert.prevPriceCents)}~~ → **${formatNzd(alert.priceCents)}**`
-      : formatNzd(alert.priceCents);
+  // Show the old price on any alert where it dropped, so a restock needs no separate price message.
+  const dropped =
+    alert.prevPriceCents !== null && alert.priceCents !== null && alert.prevPriceCents > alert.priceCents;
+  const price = dropped
+    ? `~~${formatNzd(alert.prevPriceCents)}~~ → **${formatNzd(alert.priceCents)}**`
+    : formatNzd(alert.priceCents);
 
   return {
     title: `${style.label}: ${alert.title}`.slice(0, 256),
