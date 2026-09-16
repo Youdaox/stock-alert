@@ -1,65 +1,77 @@
-import type { Snapshot } from '../adapters/types.js';
+import type { StockStatus } from '../adapters/types.js';
 
-export interface StockStateRow {
-  available: boolean;
+export type EventKind = 'NEW_PRODUCT' | 'RESTOCK' | 'SOLD_OUT' | 'PRICE_DROP';
+
+export interface StockSnapshot {
+  status: StockStatus;
+  priceCents: number | null;
   quantity?: number;
-  priceCents: number;
 }
 
-export interface Event {
-  kind: 'NEW_PRODUCT' | 'RESTOCK' | 'PRICE_DROP';
-  product: Snapshot;
-  store?: string;
-  prev?: StockStateRow;
-  next: StockStateRow;
+export interface DiffObservation {
+  productExternalId: string;
+  locationExternalId: string;
+  next: StockSnapshot;
 }
 
-const keyOf = (snapshot: Pick<Snapshot, 'externalId' | 'storeId'>): string =>
-  `${snapshot.externalId}::${snapshot.storeId ?? 'default'}`;
+export interface StockEvent {
+  kind: EventKind;
+  productExternalId: string;
+  locationExternalId: string;
+  prev?: StockSnapshot;
+  next: StockSnapshot;
+}
 
+export interface DiffOptions {
+  /** First successful check of a source: record state without emitting events. */
+  baseline: boolean;
+  /** Products that did not exist before this check. */
+  newProductIds: ReadonlySet<string>;
+}
+
+export const stockKey = (productExternalId: string, locationExternalId: string): string =>
+  `${productExternalId}::${locationExternalId}`;
+
+/**
+ * Compares the previous stock state with this check's observations.
+ * Products missing from `observations` are left alone: missing is not the same as sold out.
+ */
 export function differ(
-  prev: ReadonlyMap<string, StockStateRow>,
-  next: readonly Snapshot[],
-): Event[] {
-  const events: Event[] = [];
+  prev: ReadonlyMap<string, StockSnapshot>,
+  observations: readonly DiffObservation[],
+  options: DiffOptions,
+): StockEvent[] {
+  if (options.baseline) {
+    return [];
+  }
 
-  for (const product of next) {
-    const key = keyOf(product);
-    const previous = prev.get(key);
-    const nextState: StockStateRow = {
-      available: product.available,
-      priceCents: product.priceCents,
-      ...(product.quantity !== undefined ? { quantity: product.quantity } : {}),
-    };
+  const events: StockEvent[] = [];
+  const announced = new Set<string>();
 
-    if (!previous) {
-      events.push({
-        kind: 'NEW_PRODUCT',
-        product,
-        ...(product.storeId ? { store: product.storeId } : {}),
-        next: nextState,
-      });
+  for (const { productExternalId, locationExternalId, next } of observations) {
+    if (options.newProductIds.has(productExternalId)) {
+      if (!announced.has(productExternalId)) {
+        announced.add(productExternalId);
+        events.push({ kind: 'NEW_PRODUCT', productExternalId, locationExternalId, next });
+      }
       continue;
     }
 
-    if (!previous.available && product.available) {
-      events.push({
-        kind: 'RESTOCK',
-        product,
-        ...(product.storeId ? { store: product.storeId } : {}),
-        prev: previous,
-        next: nextState,
-      });
+    const previous = prev.get(stockKey(productExternalId, locationExternalId));
+    if (!previous) {
+      continue;
     }
 
-    if (product.priceCents < previous.priceCents) {
-      events.push({
-        kind: 'PRICE_DROP',
-        product,
-        ...(product.storeId ? { store: product.storeId } : {}),
-        prev: previous,
-        next: nextState,
-      });
+    const change = { productExternalId, locationExternalId, prev: previous, next };
+
+    if (previous.status !== 'IN_STOCK' && next.status === 'IN_STOCK') {
+      events.push({ kind: 'RESTOCK', ...change });
+    } else if (previous.status === 'IN_STOCK' && next.status !== 'IN_STOCK') {
+      events.push({ kind: 'SOLD_OUT', ...change });
+    }
+
+    if (previous.priceCents !== null && next.priceCents !== null && next.priceCents < previous.priceCents) {
+      events.push({ kind: 'PRICE_DROP', ...change });
     }
   }
 

@@ -1,58 +1,136 @@
+import { asc, eq, sql } from 'drizzle-orm';
 import cron, { type ScheduledTask } from 'node-cron';
 import type { Logger } from 'pino';
 
-import type { Adapter, Snapshot, SourceConfig } from '../adapters/types.js';
+import type { Adapter } from '../adapters/types.js';
+import type { Db, Source } from '../db/client.js';
+import { sources } from '../db/schema.js';
+import type { HttpPolicy } from './http.js';
+import { recordRun } from './record-run.js';
 
 export interface PollerDeps {
+  db: Db;
   logger: Logger;
   adapters: ReadonlyMap<string, Adapter>;
-  sources: () => Promise<SourceConfig[]>;
-  writeSnapshots: (source: SourceConfig, snapshots: Snapshot[]) => Promise<void>;
+  http: HttpPolicy;
+  channels: readonly string[];
+  restockCooldownHours: number;
+}
+
+const PARTIAL_RESULT_RATIO = 0.5;
+// After this many rejected checks in a row, accept the smaller catalogue as real.
+const PARTIAL_RESULT_ACCEPT_AFTER_FAILURES = 3;
+
+function assertNotPartial(source: Source, productCount: number): void {
+  const previous = source.lastProductCount;
+  if (
+    !previous ||
+    productCount >= previous * PARTIAL_RESULT_RATIO ||
+    source.consecutiveFailures >= PARTIAL_RESULT_ACCEPT_AFTER_FAILURES
+  ) {
+    return;
+  }
+
+  throw new Error(
+    `Partial result guard: got ${productCount} products, expected about ${previous}; skipped saving this check`,
+  );
 }
 
 export class Poller {
-  private readonly previousCounts = new Map<number, number>();
-  private task?: ScheduledTask;
+  private task: ScheduledTask | undefined;
+  private cycle: Promise<void> | undefined;
+  private readonly inFlight = new Set<number>();
 
   public constructor(private readonly deps: PollerDeps) {}
 
   public start(cronExpr: string): void {
-    this.task = cron.schedule(cronExpr, async () => {
-      await this.runCycle();
+    this.task = cron.schedule(cronExpr, () => {
+      void this.runCycle();
     });
+    void this.runCycle();
   }
 
-  public async runCycle(): Promise<void> {
-    const sources = await this.deps.sources();
+  public runCycle(): Promise<void> {
+    if (this.cycle) {
+      this.deps.logger.warn('previous check cycle still running; skipping this one');
+      return this.cycle;
+    }
 
-    for (const source of sources) {
-      if (!source.enabled) {
-        continue;
-      }
+    this.cycle = this.pollEnabledSources().finally(() => {
+      this.cycle = undefined;
+    });
+    return this.cycle;
+  }
 
-      const adapter = this.deps.adapters.get(source.adapterKey);
-      if (!adapter) {
-        this.deps.logger.warn({ adapterKey: source.adapterKey }, 'adapter not registered');
-        continue;
-      }
+  public isChecking(sourceId: number): boolean {
+    return this.inFlight.has(sourceId);
+  }
 
-      const snapshots = await adapter.fetch(source.config);
-      const previousCount = this.previousCounts.get(source.id) ?? snapshots.length;
+  public async pollSource(source: Source): Promise<void> {
+    const { db, logger } = this.deps;
 
-      if (previousCount > 0 && snapshots.length < previousCount * 0.5) {
-        this.deps.logger.warn(
-          { sourceId: source.id, previousCount, currentCount: snapshots.length },
-          'partial failure guard triggered; skipping writes for this cycle',
-        );
-        continue;
-      }
+    if (this.inFlight.has(source.id)) {
+      logger.info({ source: source.key }, 'source is already being checked');
+      return;
+    }
 
-      await this.deps.writeSnapshots(source, snapshots);
-      this.previousCounts.set(source.id, snapshots.length);
+    const adapter = this.deps.adapters.get(source.adapterKey);
+    if (!adapter) {
+      logger.warn({ source: source.key, adapterKey: source.adapterKey }, 'adapter not registered');
+      return;
+    }
+
+    this.inFlight.add(source.id);
+    const started = Date.now();
+
+    try {
+      const result = await adapter.fetch(source.config, {
+        http: this.deps.http,
+        logger: logger.child({ source: source.key }),
+      });
+      assertNotPartial(source, result.products.length);
+
+      const summary = await recordRun(db, source, result, {
+        channels: this.deps.channels,
+        restockCooldownHours: this.deps.restockCooldownHours,
+      });
+      logger.info({ source: source.key, ms: Date.now() - started, ...summary }, 'source checked');
+    } catch (error) {
+      logger.error({ err: error, source: source.key }, 'source check failed');
+      const now = new Date();
+      await db
+        .update(sources)
+        .set({
+          lastRunAt: now,
+          lastError: error instanceof Error ? error.message : String(error),
+          consecutiveFailures: sql`${sources.consecutiveFailures} + 1`,
+          updatedAt: now,
+        })
+        .where(eq(sources.id, source.id))
+        .catch((dbError: unknown) => logger.error({ err: dbError }, 'failed to record source failure'));
+    } finally {
+      this.inFlight.delete(source.id);
     }
   }
 
   public async stop(): Promise<void> {
     await this.task?.stop();
+    await this.cycle;
+  }
+
+  private async pollEnabledSources(): Promise<void> {
+    try {
+      const rows = await this.deps.db
+        .select()
+        .from(sources)
+        .where(eq(sources.enabled, true))
+        .orderBy(asc(sources.id));
+
+      for (const source of rows) {
+        await this.pollSource(source);
+      }
+    } catch (error) {
+      this.deps.logger.error({ err: error }, 'check cycle failed');
+    }
   }
 }
