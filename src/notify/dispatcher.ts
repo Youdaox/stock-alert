@@ -4,13 +4,15 @@ import type { Logger } from 'pino';
 import type { Db } from '../db/client.js';
 import { locations, notifications, products, sources, stockEvents } from '../db/schema.js';
 import type { HttpPolicy } from '../core/http.js';
-import { sendDiscordWebhook } from './discord.js';
+import { sendDiscordWebhook, type AlertDetails } from './discord.js';
+import { sendNtfy } from './ntfy.js';
 
 export interface DispatcherDeps {
   db: Db;
   logger: Logger;
   http: HttpPolicy;
   discordWebhookUrl: string | undefined;
+  ntfyTopicUrl: string | undefined;
   intervalMs: number;
 }
 
@@ -94,27 +96,27 @@ export class NotificationDispatcher {
           .map((location) => location.name)
           .sort((a, b) => a.localeCompare(b));
 
+        const alert: AlertDetails = {
+          kind: row.kind,
+          title: row.title,
+          url: row.url,
+          imageUrl: row.imageUrl,
+          storeName: row.storeName,
+          locationNames,
+          status: row.next.status,
+          priceCents: row.next.priceCents,
+          prevPriceCents: row.prev?.priceCents ?? null,
+          occurredAt: row.occurredAt,
+        };
+
         try {
-          if (row.channel !== 'discord' || !this.deps.discordWebhookUrl) {
+          if (row.channel === 'discord' && this.deps.discordWebhookUrl) {
+            await sendDiscordWebhook(this.deps.discordWebhookUrl, alert, this.deps.http);
+          } else if (row.channel === 'ntfy' && this.deps.ntfyTopicUrl) {
+            await sendNtfy(this.deps.ntfyTopicUrl, alert, this.deps.http);
+          } else {
             throw new Error(`channel "${row.channel}" is not configured`);
           }
-
-          await sendDiscordWebhook(
-            this.deps.discordWebhookUrl,
-            {
-              kind: row.kind,
-              title: row.title,
-              url: row.url,
-              imageUrl: row.imageUrl,
-              storeName: row.storeName,
-              locationNames,
-              status: row.next.status,
-              priceCents: row.next.priceCents,
-              prevPriceCents: row.prev?.priceCents ?? null,
-              occurredAt: row.occurredAt,
-            },
-            this.deps.http,
-          );
 
           await db
             .update(notifications)

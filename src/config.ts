@@ -16,6 +16,8 @@ const envSchema = z.object({
   HTTP_BACKOFF_BASE_MS: z.coerce.number().int().positive().default(500),
   HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(20_000),
   DISCORD_WEBHOOK_URL: optionalUrl,
+  /** Full ntfy topic URL for phone push, e.g. https://ntfy.sh/<something-unguessable>. */
+  NTFY_TOPIC_URL: optionalUrl,
   RESTOCK_ALERT_COOLDOWN_HOURS: z.coerce.number().nonnegative().default(6),
 });
 

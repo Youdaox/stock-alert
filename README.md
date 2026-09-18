@@ -29,7 +29,9 @@ Toyworld was checked and disabled: it sells no Pokémon TCG online. Kmart NZ and
 5. Add the stores: `pnpm db:seed`
 6. Start the tracker and website: `pnpm dev`, then open http://127.0.0.1:3100
 
-The first check of each store records a baseline without sending alerts. After that, new listings, restocks and price drops go to Discord and the Activity tab.
+The first check of each store records a baseline without sending alerts. After that, new listings, restocks and price drops go to the Activity tab, to Discord if `DISCORD_WEBHOOK_URL` is set, and to your phone if `NTFY_TOPIC_URL` is set (restocks arrive at ntfy's highest priority).
+
+A product that restocks in many stores at once produces one alert naming the stores, not one per store.
 
 ## Scripts
 

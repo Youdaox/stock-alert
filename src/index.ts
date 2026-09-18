@@ -21,9 +21,12 @@ async function main(): Promise<void> {
     timeoutMs: config.HTTP_TIMEOUT_MS,
   };
 
-  const channels = config.DISCORD_WEBHOOK_URL ? ['discord'] : [];
+  const channels = [
+    ...(config.DISCORD_WEBHOOK_URL ? ['discord'] : []),
+    ...(config.NTFY_TOPIC_URL ? ['ntfy'] : []),
+  ];
   if (channels.length === 0) {
-    logger.warn('DISCORD_WEBHOOK_URL is not set; alerts will only show on the website');
+    logger.warn('no alert channel configured; alerts will only show on the website');
   }
 
   const poller = new Poller({
@@ -40,6 +43,7 @@ async function main(): Promise<void> {
     logger,
     http,
     discordWebhookUrl: config.DISCORD_WEBHOOK_URL,
+    ntfyTopicUrl: config.NTFY_TOPIC_URL,
     intervalMs: 10_000,
   });
 
