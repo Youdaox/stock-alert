@@ -2,4 +2,5 @@ node_modules/
 dist/
 .env
 .browser-profiles/
+.cache/
 .DS_Store

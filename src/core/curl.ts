@@ -12,6 +12,10 @@ export interface CurlOptions {
   userAgent: string;
   headers?: Record<string, string>;
   timeoutMs: number;
+  /** Cookie jar file to read and write, for endpoints that need a warmed-up session. */
+  cookieJar?: string;
+  /** Follow redirects; some endpoints redirect to their real path. */
+  followRedirects?: boolean;
 }
 
 export interface CurlResponse {
@@ -41,6 +45,14 @@ export async function curlText(url: string, options: CurlOptions): Promise<CurlR
     '-A',
     options.userAgent,
   ];
+
+  if (options.cookieJar) {
+    args.push('-b', options.cookieJar, '-c', options.cookieJar);
+  }
+
+  if (options.followRedirects) {
+    args.push('-L');
+  }
 
   for (const [name, value] of Object.entries(options.headers ?? {})) {
     args.push('-H', `${name}: ${value}`);

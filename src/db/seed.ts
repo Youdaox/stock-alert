@@ -72,6 +72,9 @@ const OTHER_SOURCES = [
       // the category page carries price and the "Find in-store" (not orderable online) badge.
       categoryPaths: ['/c/official-merchandise/pok%C3%A9mon/pokemon-trading-cards'],
       requireKeyword: false,
+      // Per-store stock for the user's region; roughly one request per product, so check less often.
+      storeRegions: ['NZ-AUK'],
+      minIntervalMinutes: 15,
     },
   },
   {

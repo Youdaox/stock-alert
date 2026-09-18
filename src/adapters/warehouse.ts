@@ -1,8 +1,12 @@
 import { parse } from 'node-html-parser';
 import { z } from 'zod';
 
+import { mkdir } from 'node:fs/promises';
+import path from 'node:path';
+
 import { isPokemonSealed } from '../core/catalog.js';
 import { curlText } from '../core/curl.js';
+import { parseStoreAvailability, type StoreAvailability } from './warehouse-stores.js';
 import type {
   Adapter,
   AdapterContext,
@@ -23,6 +27,11 @@ export const warehouseConfigSchema = z.object({
   pageSize: z.number().int().positive().default(96),
   requestDelayMs: z.number().int().nonnegative().default(1500),
   requireKeyword: z.boolean().default(false),
+  /** Regions to check in-store stock for, e.g. NZ-AUK. Empty means online stock only. */
+  storeRegions: z.array(z.string().min(1)).default([]),
+  storeRequestDelayMs: z.number().int().nonnegative().default(2000),
+  /** The store endpoint only answers to a warmed-up session, so cookies are kept here. */
+  cookieJar: z.string().default('.cache/warehouse-cookies.txt'),
   userAgent: z
     .string()
     .default(
@@ -98,6 +107,29 @@ export function parseWarehouseListing(
   return { products, observations, tileCount: tiles.length };
 }
 
+const storeResponseSchema = z.object({ stores: z.string(), serviceUnavailable: z.boolean().optional() });
+
+/** Turns one store panel list into a location and an observation per store. */
+export function toStoreRecords(
+  productExternalId: string,
+  stores: readonly StoreAvailability[],
+  region: string,
+): { locations: LocationRecord[]; observations: StockObservation[] } {
+  const locations: LocationRecord[] = [];
+  const observations: StockObservation[] = [];
+
+  for (const store of stores) {
+    locations.push({ externalId: `store-${store.storeId}`, name: store.name, kind: 'physical', region });
+    observations.push({
+      productExternalId,
+      locationExternalId: `store-${store.storeId}`,
+      status: store.inStock ? 'IN_STOCK' : 'OUT',
+    });
+  }
+
+  return { locations, observations };
+}
+
 export class WarehouseAdapter implements Adapter {
   public readonly key = 'warehouse';
 
@@ -111,16 +143,22 @@ export class WarehouseAdapter implements Adapter {
 
     const products = new Map<string, ProductRecord>();
     const observations = new Map<string, StockObservation>();
+    const locations = new Map<string, LocationRecord>([[ONLINE_LOCATION.externalId, ONLINE_LOCATION]]);
+
+    const cookieJar = path.resolve(config.cookieJar);
+    await mkdir(path.dirname(cookieJar), { recursive: true });
 
     for (const categoryPath of config.categoryPaths) {
       const url = `${config.baseUrl}${categoryPath}?sz=${config.pageSize}`;
       await new Promise((resolve) => setTimeout(resolve, config.requestDelayMs));
 
       // Cloudflare rejects undici here by its TLS fingerprint, so this source goes through curl.
+      // This also warms up the session the store-availability endpoint needs.
       const response = await curlText(url, {
         userAgent: config.userAgent,
         headers,
         timeoutMs: ctx.http.timeoutMs,
+        cookieJar,
       });
 
       if (response.status !== 200) {
@@ -136,13 +174,51 @@ export class WarehouseAdapter implements Adapter {
         products.set(product.externalId, product);
       }
       for (const observation of parsed.observations) {
-        observations.set(observation.productExternalId, observation);
+        observations.set(`${observation.productExternalId}::online`, observation);
+      }
+    }
+
+    for (const region of config.storeRegions) {
+      for (const product of products.values()) {
+        await new Promise((resolve) => setTimeout(resolve, config.storeRequestDelayMs));
+
+        const url = `${config.baseUrl}/products/stores/region?productId=${encodeURIComponent(product.externalId)}&region=${encodeURIComponent(region)}`;
+        const response = await curlText(url, {
+          userAgent: config.userAgent,
+          headers: { accept: 'application/json, text/javascript', 'x-requested-with': 'XMLHttpRequest' },
+          timeoutMs: ctx.http.timeoutMs,
+          cookieJar,
+          followRedirects: true,
+        });
+
+        if (response.status !== 200) {
+          ctx.logger.warn(
+            { productId: product.externalId, region, status: response.status },
+            'warehouse: store availability request failed',
+          );
+          continue;
+        }
+
+        const payload = storeResponseSchema.safeParse(JSON.parse(response.body));
+        if (!payload.success || payload.data.serviceUnavailable) {
+          ctx.logger.warn({ productId: product.externalId, region }, 'warehouse: store availability unavailable');
+          continue;
+        }
+
+        const stores = parseStoreAvailability(payload.data.stores);
+        const records = toStoreRecords(product.externalId, stores, region);
+        for (const location of records.locations) {
+          locations.set(location.externalId, location);
+        }
+        for (const observation of records.observations) {
+          observations.set(`${observation.productExternalId}::${observation.locationExternalId}`, observation);
+        }
       }
     }
 
     return {
       products: [...products.values()],
-      locations: [ONLINE_LOCATION],
+      locations: [...locations.values()],
       observations: [...observations.values()],
     };
   }
