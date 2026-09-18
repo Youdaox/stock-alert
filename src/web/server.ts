@@ -49,6 +49,10 @@ export async function createWebServer({ db, logger, poller }: WebDeps) {
         sourceId: sources.id,
         storeName: sources.name,
         inStock: sql<boolean>`coalesce(bool_or(${stockState.status} = 'IN_STOCK'), false)`,
+        // Online and in-store stock are different things to a shopper, so report them apart.
+        onlineInStock: sql<boolean>`coalesce(bool_or(${stockState.status} = 'IN_STOCK') filter (where ${locations.kind} = 'online'), false)`,
+        storesInStock: sql<number>`count(*) filter (where ${locations.kind} = 'physical' and ${stockState.status} = 'IN_STOCK')::int`,
+        storesChecked: sql<number>`count(*) filter (where ${locations.kind} = 'physical')::int`,
         priceCents: sql<number | null>`min(${stockState.priceCents})`,
         changedAt: sql<string | null>`max(${stockState.changedAt})`,
         // A product the store no longer lists keeps its last known state.
@@ -57,6 +61,7 @@ export async function createWebServer({ db, logger, poller }: WebDeps) {
       .from(products)
       .innerJoin(sources, eq(sources.id, products.sourceId))
       .leftJoin(stockState, eq(stockState.productId, products.id))
+      .leftJoin(locations, eq(locations.id, stockState.locationId))
       .where(eq(sources.enabled, true))
       .groupBy(products.id, sources.id);
 

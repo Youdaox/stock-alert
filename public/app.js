@@ -184,6 +184,19 @@ function renderProducts() {
   $('grid').innerHTML = shown.map(productCard).join('');
 }
 
+function stockBadge(product) {
+  const stores = product.storesInStock ?? 0;
+  const storeLabel = `In ${stores} store${stores === 1 ? '' : 's'}`;
+
+  if (product.onlineInStock) {
+    return `<span class="badge ok">Online</span>${stores > 0 ? `<span class="badge ok">${storeLabel}</span>` : ''}`;
+  }
+  if (stores > 0) {
+    return `<span class="badge ok">${storeLabel}</span>`;
+  }
+  return `<span class="badge out">${product.inStock ? 'In stock' : 'Sold out'}</span>`;
+}
+
 function productCard(product) {
   const url = escapeHtml(safeUrl(product.url));
   const image = product.imageUrl
@@ -195,7 +208,7 @@ function productCard(product) {
       <a class="thumb" href="${url}" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true">${image}</a>
       <div class="card-body">
         <div class="meta">
-          <span class="badge ${product.inStock ? 'ok' : 'out'}">${product.inStock ? 'In stock' : 'Sold out'}</span>
+          ${stockBadge(product)}
           <span class="chip">${escapeHtml(CATEGORY_LABELS[product.category] ?? product.category)}</span>
           ${product.language === 'JP' ? '<span class="chip">Japanese</span>' : ''}
         </div>
@@ -204,7 +217,7 @@ function productCard(product) {
         <div class="card-foot">
           <strong class="price">${price(product.priceCents)}</strong>
           <span class="subtle" title="${escapeHtml(fullTime(product.changedAt))}">
-            ${product.inStock ? 'In stock' : 'Out'} since ${timeAgo(product.changedAt)}
+            ${product.storesChecked > 0 ? `${product.storesInStock ?? 0}/${product.storesChecked} stores · ` : ''}${timeAgo(product.changedAt)}
           </span>
         </div>
       </div>
