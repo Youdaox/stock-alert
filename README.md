@@ -66,6 +66,9 @@ src/
 public/       website (HTML, CSS, JS)
 ```
 
+- The scheduler ticks every minute; each source sets `minIntervalSeconds` in its config, so hobby stores are checked every minute while heavier sources stay slow. Three sources run at a time.
+- A source that has not succeeded for `SOURCE_STALE_AFTER_MINUTES` raises a warning through the same outbox.
+- `pnpm test` includes integration tests that run against a `stock_alert_test` database, created automatically. They skip themselves if Postgres is unreachable.
 - A product missing from a check is not treated as sold out.
 - Checks that return under half the usual number of products are not saved.
 - Alerts are written to a `notifications` table first and sent from there, so they survive restarts.
