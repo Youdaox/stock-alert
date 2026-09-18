@@ -17,6 +17,36 @@ export interface PollerDeps {
   restockCooldownHours: number;
 }
 
+/** A failing source waits longer each time, so a blocked site is not hammered every cycle. */
+const FAILURE_BACKOFF_BASE_MINUTES = 5;
+const MAX_FAILURE_BACKOFF_STEPS = 8;
+
+export interface CheckSchedule {
+  config: unknown;
+  lastRunAt: Date | null;
+  consecutiveFailures: number;
+}
+
+export function isDueForCheck(source: CheckSchedule, now: Date): boolean {
+  if (!source.lastRunAt) {
+    return true;
+  }
+
+  const configured = Number((source.config as { minIntervalMinutes?: unknown })?.minIntervalMinutes ?? 0);
+  const minIntervalMinutes = Number.isFinite(configured) && configured > 0 ? configured : 0;
+
+  const failureSteps = Math.min(Math.max(source.consecutiveFailures, 0), MAX_FAILURE_BACKOFF_STEPS);
+  const backoffMinutes =
+    failureSteps > 0 ? Math.max(minIntervalMinutes, FAILURE_BACKOFF_BASE_MINUTES) * 2 ** (failureSteps - 1) : 0;
+
+  const waitMinutes = Math.max(minIntervalMinutes, backoffMinutes);
+  if (waitMinutes <= 0) {
+    return true;
+  }
+
+  return now.getTime() >= source.lastRunAt.getTime() + waitMinutes * 60_000;
+}
+
 const PARTIAL_RESULT_RATIO = 0.5;
 // After this many rejected checks in a row, accept the smaller catalogue as real.
 const PARTIAL_RESULT_ACCEPT_AFTER_FAILURES = 3;
@@ -74,7 +104,8 @@ export class Poller {
       return;
     }
 
-    if (!options.force && this.checkedRecently(source)) {
+    if (!options.force && !isDueForCheck(source, new Date())) {
+      logger.debug({ source: source.key, consecutiveFailures: source.consecutiveFailures }, 'source not due yet');
       return;
     }
 
@@ -120,25 +151,6 @@ export class Poller {
   public async stop(): Promise<void> {
     await this.task?.stop();
     await this.cycle;
-  }
-
-  /** Sources can ask to be checked less often than the cron runs, e.g. browser-driven ones. */
-  private checkedRecently(source: Source): boolean {
-    const minIntervalMinutes = Number((source.config as { minIntervalMinutes?: unknown }).minIntervalMinutes ?? 0);
-    if (!Number.isFinite(minIntervalMinutes) || minIntervalMinutes <= 0 || !source.lastSuccessAt) {
-      return false;
-    }
-
-    const dueAt = source.lastSuccessAt.getTime() + minIntervalMinutes * 60_000;
-    if (Date.now() >= dueAt) {
-      return false;
-    }
-
-    this.deps.logger.debug(
-      { source: source.key, minIntervalMinutes },
-      'skipping source; checked within its minimum interval',
-    );
-    return true;
   }
 
   private async pollEnabledSources(): Promise<void> {
