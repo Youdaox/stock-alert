@@ -4,8 +4,8 @@ import type { Logger } from 'pino';
 import type { Db } from '../db/client.js';
 import { locations, notifications, products, sources, stockEvents } from '../db/schema.js';
 import type { HttpPolicy } from '../core/http.js';
-import { sendDiscordWebhook, type AlertDetails } from './discord.js';
-import { sendNtfy } from './ntfy.js';
+import { sendDiscordMessage, sendDiscordWebhook, type AlertDetails } from './discord.js';
+import { sendNtfy, sendNtfyMessage } from './ntfy.js';
 
 export interface DispatcherDeps {
   db: Db;
@@ -56,6 +56,8 @@ export class NotificationDispatcher {
           id: notifications.id,
           channel: notifications.channel,
           attempts: notifications.attempts,
+          messageTitle: notifications.title,
+          messageBody: notifications.body,
           kind: stockEvents.kind,
           prev: stockEvents.prev,
           next: stockEvents.next,
@@ -65,13 +67,12 @@ export class NotificationDispatcher {
           url: products.url,
           imageUrl: products.imageUrl,
           storeName: sources.name,
-          locationName: locations.name,
         })
         .from(notifications)
-        .innerJoin(stockEvents, eq(stockEvents.id, notifications.eventId))
-        .innerJoin(products, eq(products.id, stockEvents.productId))
-        .innerJoin(sources, eq(sources.id, products.sourceId))
-        .leftJoin(locations, eq(locations.id, stockEvents.locationId))
+        // Left joins: a health warning has no stock event behind it.
+        .leftJoin(stockEvents, eq(stockEvents.id, notifications.eventId))
+        .leftJoin(products, eq(products.id, stockEvents.productId))
+        .leftJoin(sources, eq(sources.id, products.sourceId))
         .where(eq(notifications.status, 'pending'))
         .orderBy(asc(notifications.id))
         .limit(BATCH_SIZE);
@@ -79,43 +80,26 @@ export class NotificationDispatcher {
       for (const row of pending) {
         const attempts = row.attempts + 1;
 
-        // One notification stands for every store that changed in the same check, so gather them.
-        const siblings = await db
-          .select({ name: locations.name, kind: locations.kind })
-          .from(stockEvents)
-          .innerJoin(locations, eq(locations.id, stockEvents.locationId))
-          .where(
-            and(
-              eq(stockEvents.productId, row.productId),
-              eq(stockEvents.kind, row.kind),
-              eq(stockEvents.occurredAt, row.occurredAt),
-            ),
-          );
-        const locationNames = siblings
-          .filter((location) => location.kind === 'physical')
-          .map((location) => location.name)
-          .sort((a, b) => a.localeCompare(b));
-
-        const alert: AlertDetails = {
-          kind: row.kind,
-          title: row.title,
-          url: row.url,
-          imageUrl: row.imageUrl,
-          storeName: row.storeName,
-          locationNames,
-          status: row.next.status,
-          priceCents: row.next.priceCents,
-          prevPriceCents: row.prev?.priceCents ?? null,
-          occurredAt: row.occurredAt,
-        };
-
         try {
-          if (row.channel === 'discord' && this.deps.discordWebhookUrl) {
-            await sendDiscordWebhook(this.deps.discordWebhookUrl, alert, this.deps.http);
-          } else if (row.channel === 'ntfy' && this.deps.ntfyTopicUrl) {
-            await sendNtfy(this.deps.ntfyTopicUrl, alert, this.deps.http);
+          if (row.kind && row.next && row.title && row.url && row.storeName && row.occurredAt && row.productId) {
+            const alert: AlertDetails = {
+              kind: row.kind,
+              title: row.title,
+              url: row.url,
+              imageUrl: row.imageUrl,
+              storeName: row.storeName,
+              locationNames: await this.storesFor(row.productId, row.kind, row.occurredAt),
+              status: row.next.status,
+              priceCents: row.next.priceCents,
+              prevPriceCents: row.prev?.priceCents ?? null,
+              occurredAt: row.occurredAt,
+            };
+            await this.sendAlert(row.channel, alert);
           } else {
-            throw new Error(`channel "${row.channel}" is not configured`);
+            await this.sendMessage(row.channel, {
+              title: row.messageTitle ?? 'stock-alert',
+              body: row.messageBody ?? '',
+            });
           }
 
           await db
@@ -138,5 +122,51 @@ export class NotificationDispatcher {
     } finally {
       this.busy = false;
     }
+  }
+
+  /** One notification stands for every store that changed in the same check, so gather them. */
+  private async storesFor(productId: number, kind: string, occurredAt: Date): Promise<string[]> {
+    const siblings = await this.deps.db
+      .select({ name: locations.name, kind: locations.kind })
+      .from(stockEvents)
+      .innerJoin(locations, eq(locations.id, stockEvents.locationId))
+      .where(
+        and(
+          eq(stockEvents.productId, productId),
+          eq(stockEvents.kind, kind as never),
+          eq(stockEvents.occurredAt, occurredAt),
+        ),
+      );
+
+    return siblings
+      .filter((location) => location.kind === 'physical')
+      .map((location) => location.name)
+      .sort((a, b) => a.localeCompare(b));
+  }
+
+  private async sendAlert(channel: string, alert: AlertDetails): Promise<void> {
+    if (channel === 'discord' && this.deps.discordWebhookUrl) {
+      await sendDiscordWebhook(this.deps.discordWebhookUrl, alert, this.deps.http);
+      return;
+    }
+    if (channel === 'ntfy' && this.deps.ntfyTopicUrl) {
+      await sendNtfy(this.deps.ntfyTopicUrl, alert, this.deps.http);
+      return;
+    }
+
+    throw new Error(`channel "${channel}" is not configured`);
+  }
+
+  private async sendMessage(channel: string, message: { title: string; body: string }): Promise<void> {
+    if (channel === 'discord' && this.deps.discordWebhookUrl) {
+      await sendDiscordMessage(this.deps.discordWebhookUrl, message, this.deps.http);
+      return;
+    }
+    if (channel === 'ntfy' && this.deps.ntfyTopicUrl) {
+      await sendNtfyMessage(this.deps.ntfyTopicUrl, message, this.deps.http);
+      return;
+    }
+
+    throw new Error(`channel "${channel}" is not configured`);
   }
 }

@@ -2,6 +2,7 @@ import pino from 'pino';
 
 import { adapterRegistry } from './adapters/index.js';
 import { loadConfig } from './config.js';
+import { HealthMonitor } from './core/health-monitor.js';
 import type { HttpPolicy } from './core/http.js';
 import { Poller } from './core/poller.js';
 import { createDb } from './db/client.js';
@@ -47,15 +48,25 @@ async function main(): Promise<void> {
     intervalMs: 10_000,
   });
 
+  const health = new HealthMonitor({
+    db,
+    logger,
+    channels,
+    staleAfterMinutes: config.SOURCE_STALE_AFTER_MINUTES,
+    intervalMs: 300_000,
+  });
+
   const web = await createWebServer({ db, logger, poller });
   await web.listen({ host: config.HOST, port: config.PORT });
 
   poller.start(config.CRON_SCHEDULE);
   dispatcher.start();
+  health.start();
   logger.info({ url: `http://${config.HOST}:${config.PORT}` }, 'stock-alert running');
 
   const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
     logger.info({ signal }, 'shutting down');
+    health.stop();
     dispatcher.stop();
     await web.close();
     await poller.stop();

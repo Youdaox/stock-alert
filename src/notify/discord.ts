@@ -82,6 +82,27 @@ export function formatEmbed(alert: AlertDetails): DiscordEmbed {
   };
 }
 
+/** Plain message, for notifications that are not about a product (health warnings). */
+export async function sendDiscordMessage(
+  url: string,
+  message: { title: string; body: string },
+  http: HttpPolicy,
+): Promise<void> {
+  const response = await requestWithPolicy(
+    url,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: `**${message.title}**\n${message.body}`.slice(0, 1900) }),
+    },
+    http,
+  );
+
+  if (!response.ok) {
+    throw new Error(`Discord webhook failed with status ${response.status}`);
+  }
+}
+
 export async function sendDiscordWebhook(url: string, alert: AlertDetails, http: HttpPolicy): Promise<void> {
   const response = await requestWithPolicy(
     url,

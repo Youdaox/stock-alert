@@ -112,9 +112,10 @@ export const notifications = pgTable(
   'notifications',
   {
     id: integer('id').generatedAlwaysAsIdentity().primaryKey(),
-    eventId: integer('event_id')
-      .notNull()
-      .references(() => stockEvents.id, { onDelete: 'cascade' }),
+    /** Null for notifications that are not about a stock change, such as health warnings. */
+    eventId: integer('event_id').references(() => stockEvents.id, { onDelete: 'cascade' }),
+    title: text('title'),
+    body: text('body'),
     channel: text('channel').notNull(),
     status: text('status').$type<'pending' | 'sent' | 'failed'>().notNull().default('pending'),
     attempts: integer('attempts').notNull().default(0),

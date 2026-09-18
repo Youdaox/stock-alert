@@ -20,6 +20,8 @@ const envSchema = z.object({
   /** Full ntfy topic URL for phone push, e.g. https://ntfy.sh/<something-unguessable>. */
   NTFY_TOPIC_URL: optionalUrl,
   RESTOCK_ALERT_COOLDOWN_HOURS: z.coerce.number().nonnegative().default(6),
+  /** Warn when a source has not completed a check within this many minutes. 0 disables it. */
+  SOURCE_STALE_AFTER_MINUTES: z.coerce.number().int().nonnegative().default(60),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;

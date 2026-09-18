@@ -60,6 +60,32 @@ export function formatNtfy(alert: AlertDetails): NtfyMessage {
   };
 }
 
+/** Plain message, for notifications that are not about a product (health warnings). */
+export async function sendNtfyMessage(
+  topicUrl: string,
+  message: { title: string; body: string },
+  http: HttpPolicy,
+): Promise<void> {
+  const response = await requestWithPolicy(
+    topicUrl,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        Title: message.title.slice(0, MAX_TITLE),
+        Priority: '3',
+        Tags: 'warning',
+      },
+      body: message.body,
+    },
+    http,
+  );
+
+  if (!response.ok) {
+    throw new Error(`ntfy push failed with status ${response.status}`);
+  }
+}
+
 export async function sendNtfy(topicUrl: string, alert: AlertDetails, http: HttpPolicy): Promise<void> {
   const message = formatNtfy(alert);
 
