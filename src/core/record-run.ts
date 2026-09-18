@@ -30,8 +30,18 @@ export function selectAlertableEvents(
     (event) => ALERT_KINDS.has(event.kind) && !(event.kind === 'RESTOCK' && recentlyRestockedProductIds.has(event.productId)),
   );
   const restocked = new Set(kept.filter((event) => event.kind === 'RESTOCK').map(alertKey));
+  const withoutFoldedDrops = kept.filter((event) => !(event.kind === 'PRICE_DROP' && restocked.has(alertKey(event))));
 
-  return kept.filter((event) => !(event.kind === 'PRICE_DROP' && restocked.has(alertKey(event))));
+  // One alert per product per kind: a delivery landing in 20 stores is one message, not 20.
+  const seen = new Set<string>();
+  return withoutFoldedDrops.filter((event) => {
+    const key = `${event.kind}:${event.productId}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
 }
 
 export interface RecordRunOptions {

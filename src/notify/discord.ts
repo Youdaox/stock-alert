@@ -9,11 +9,30 @@ export interface AlertDetails {
   url: string;
   imageUrl: string | null;
   storeName: string;
-  locationName: string | null;
+  /** Every physical store this alert covers; empty for online-only stock. */
+  locationNames: string[];
   status: StockStatus;
   priceCents: number | null;
   prevPriceCents: number | null;
   occurredAt: Date;
+}
+
+const MAX_LISTED_STORES = 8;
+
+export function formatStores(storeName: string, locationNames: readonly string[]): string {
+  if (locationNames.length === 0) {
+    return storeName;
+  }
+  if (locationNames.length === 1) {
+    return `${storeName} — ${locationNames[0]}`;
+  }
+  return `${storeName} — ${locationNames.length} stores`;
+}
+
+export function formatStoreList(locationNames: readonly string[]): string {
+  const listed = locationNames.slice(0, MAX_LISTED_STORES).join(', ');
+  const remaining = locationNames.length - MAX_LISTED_STORES;
+  return remaining > 0 ? `${listed} and ${remaining} more` : listed;
 }
 
 interface DiscordEmbed {
@@ -38,10 +57,7 @@ export const formatNzd = (cents: number | null): string => (cents === null ? 'Un
 
 export function formatEmbed(alert: AlertDetails): DiscordEmbed {
   const style = KIND_STYLE[alert.kind];
-  const store =
-    alert.locationName && alert.locationName !== 'Online'
-      ? `${alert.storeName} — ${alert.locationName}`
-      : alert.storeName;
+  const store = formatStores(alert.storeName, alert.locationNames);
   // Show the old price on any alert where it dropped, so a restock needs no separate price message.
   const dropped =
     alert.prevPriceCents !== null && alert.priceCents !== null && alert.prevPriceCents > alert.priceCents;
@@ -57,6 +73,9 @@ export function formatEmbed(alert: AlertDetails): DiscordEmbed {
       { name: 'Store', value: store, inline: true },
       { name: 'Price', value: price, inline: true },
       { name: 'Status', value: alert.status === 'IN_STOCK' ? 'In stock' : 'Out of stock', inline: true },
+      ...(alert.locationNames.length > 1
+        ? [{ name: 'Stores', value: formatStoreList(alert.locationNames), inline: false }]
+        : []),
     ],
     ...(alert.imageUrl ? { thumbnail: { url: alert.imageUrl } } : {}),
     timestamp: alert.occurredAt.toISOString(),

@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import type { Logger } from 'pino';
 
 import type { Db } from '../db/client.js';
@@ -58,6 +58,7 @@ export class NotificationDispatcher {
           prev: stockEvents.prev,
           next: stockEvents.next,
           occurredAt: stockEvents.occurredAt,
+          productId: products.id,
           title: products.title,
           url: products.url,
           imageUrl: products.imageUrl,
@@ -76,6 +77,23 @@ export class NotificationDispatcher {
       for (const row of pending) {
         const attempts = row.attempts + 1;
 
+        // One notification stands for every store that changed in the same check, so gather them.
+        const siblings = await db
+          .select({ name: locations.name, kind: locations.kind })
+          .from(stockEvents)
+          .innerJoin(locations, eq(locations.id, stockEvents.locationId))
+          .where(
+            and(
+              eq(stockEvents.productId, row.productId),
+              eq(stockEvents.kind, row.kind),
+              eq(stockEvents.occurredAt, row.occurredAt),
+            ),
+          );
+        const locationNames = siblings
+          .filter((location) => location.kind === 'physical')
+          .map((location) => location.name)
+          .sort((a, b) => a.localeCompare(b));
+
         try {
           if (row.channel !== 'discord' || !this.deps.discordWebhookUrl) {
             throw new Error(`channel "${row.channel}" is not configured`);
@@ -89,7 +107,7 @@ export class NotificationDispatcher {
               url: row.url,
               imageUrl: row.imageUrl,
               storeName: row.storeName,
-              locationName: row.locationName,
+              locationNames,
               status: row.next.status,
               priceCents: row.next.priceCents,
               prevPriceCents: row.prev?.priceCents ?? null,

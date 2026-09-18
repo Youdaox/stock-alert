@@ -39,7 +39,24 @@ describe('selectAlertableEvents', () => {
     expect(selectAlertableEvents(events, new Set([1])).map((event) => event.id)).toEqual([2]);
   });
 
-  it('treats different locations of one product separately', () => {
+  it('sends one alert when a product restocks across many stores', () => {
+    const shipment = [10, 11, 12, 13].map((locationId, index) =>
+      candidate({ id: index + 1, kind: 'RESTOCK', locationId }),
+    );
+
+    expect(selectAlertableEvents(shipment, none).map((event) => event.id)).toEqual([1]);
+  });
+
+  it('still alerts separately for different products', () => {
+    const events = [
+      candidate({ id: 1, kind: 'RESTOCK', productId: 1 }),
+      candidate({ id: 2, kind: 'RESTOCK', productId: 2 }),
+    ];
+
+    expect(selectAlertableEvents(events, none).map((event) => event.id)).toEqual([1, 2]);
+  });
+
+  it('keeps a price drop at another location when the restock is elsewhere', () => {
     const events = [
       candidate({ id: 1, kind: 'RESTOCK', locationId: 10 }),
       candidate({ id: 2, kind: 'PRICE_DROP', locationId: 11 }),
@@ -60,7 +77,7 @@ describe('formatEmbed', () => {
     url: 'https://shop.example.nz/products/prismatic',
     imageUrl: null,
     storeName: 'The Game Tree',
-    locationName: 'Online',
+    locationNames: [] as string[],
     status: 'IN_STOCK' as const,
     priceCents: 6995,
     prevPriceCents: 8995,
@@ -79,10 +96,27 @@ describe('formatEmbed', () => {
     expect(price?.value).toBe('$69.95');
   });
 
-  it('names the store, and the location when it is a physical one', () => {
+  it('names the store, and the branch when a single one is involved', () => {
     expect(formatEmbed(alert).fields[0]?.value).toBe('The Game Tree');
-    expect(formatEmbed({ ...alert, locationName: 'Sylvia Park' }).fields[0]?.value).toBe(
+    expect(formatEmbed({ ...alert, locationNames: ['Sylvia Park'] }).fields[0]?.value).toBe(
       'The Game Tree — Sylvia Park',
     );
+  });
+
+  it('summarises a multi-store restock and lists the stores', () => {
+    const shipment = formatEmbed({
+      ...alert,
+      storeName: 'The Warehouse',
+      locationNames: ['Albany', 'Botany Downs', 'Manukau', 'Sylvia Park'],
+    });
+
+    expect(shipment.fields[0]?.value).toBe('The Warehouse — 4 stores');
+    expect(shipment.fields[3]?.value).toBe('Albany, Botany Downs, Manukau, Sylvia Park');
+  });
+
+  it('trims a very long store list', () => {
+    const many = Array.from({ length: 12 }, (_, index) => `Store ${index + 1}`);
+
+    expect(formatEmbed({ ...alert, locationNames: many }).fields[3]?.value).toMatch(/and 4 more$/);
   });
 });
