@@ -31,6 +31,8 @@ const shopifyProductSchema = z.object({
   handle: z.string(),
   vendor: z.string().nullish(),
   product_type: z.string().nullish(),
+  published_at: z.string().nullish(),
+  created_at: z.string().nullish(),
   tags: z
     .union([z.array(z.string()), z.string()])
     .transform((tags) =>
@@ -99,6 +101,8 @@ export function mapShopifyProducts(
 
     const image = item.images[0];
     const hasVariants = item.variants.length > 1;
+    const listedAt = item.published_at ?? item.created_at;
+    const publishedAt = listedAt ? new Date(listedAt) : undefined;
 
     for (const variant of item.variants) {
       const externalId = String(variant.id);
@@ -119,6 +123,7 @@ export function mapShopifyProducts(
         priceCents: toCents(variant.price),
         ...(image ? { imageUrl: absoluteUrl(image.src) } : {}),
         ...(item.product_type ? { productType: item.product_type } : {}),
+        ...(publishedAt && !Number.isNaN(publishedAt.getTime()) ? { publishedAt } : {}),
       });
 
       observations.push({

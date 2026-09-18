@@ -18,8 +18,11 @@ export interface PollerDeps {
 }
 
 /** A failing source waits longer each time, so a blocked site is not hammered every cycle. */
-const FAILURE_BACKOFF_BASE_MINUTES = 5;
+const FAILURE_BACKOFF_BASE_SECONDS = 300;
 const MAX_FAILURE_BACKOFF_STEPS = 8;
+
+/** Sources are checked in parallel so a slow one cannot delay a fast-moving one. */
+const SOURCE_CONCURRENCY = 3;
 
 export interface CheckSchedule {
   config: unknown;
@@ -27,24 +30,37 @@ export interface CheckSchedule {
   consecutiveFailures: number;
 }
 
+const positive = (value: unknown): number => {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+};
+
+/** How often a source wants to be checked, in seconds; minutes are still accepted. */
+export function minIntervalSecondsOf(config: unknown): number {
+  const { minIntervalSeconds, minIntervalMinutes } = (config ?? {}) as {
+    minIntervalSeconds?: unknown;
+    minIntervalMinutes?: unknown;
+  };
+
+  return positive(minIntervalSeconds) || positive(minIntervalMinutes) * 60;
+}
+
 export function isDueForCheck(source: CheckSchedule, now: Date): boolean {
   if (!source.lastRunAt) {
     return true;
   }
 
-  const configured = Number((source.config as { minIntervalMinutes?: unknown })?.minIntervalMinutes ?? 0);
-  const minIntervalMinutes = Number.isFinite(configured) && configured > 0 ? configured : 0;
-
+  const minIntervalSeconds = minIntervalSecondsOf(source.config);
   const failureSteps = Math.min(Math.max(source.consecutiveFailures, 0), MAX_FAILURE_BACKOFF_STEPS);
-  const backoffMinutes =
-    failureSteps > 0 ? Math.max(minIntervalMinutes, FAILURE_BACKOFF_BASE_MINUTES) * 2 ** (failureSteps - 1) : 0;
+  const backoffSeconds =
+    failureSteps > 0 ? Math.max(minIntervalSeconds, FAILURE_BACKOFF_BASE_SECONDS) * 2 ** (failureSteps - 1) : 0;
 
-  const waitMinutes = Math.max(minIntervalMinutes, backoffMinutes);
-  if (waitMinutes <= 0) {
+  const waitSeconds = Math.max(minIntervalSeconds, backoffSeconds);
+  if (waitSeconds <= 0) {
     return true;
   }
 
-  return now.getTime() >= source.lastRunAt.getTime() + waitMinutes * 60_000;
+  return now.getTime() >= source.lastRunAt.getTime() + waitSeconds * 1000;
 }
 
 const PARTIAL_RESULT_RATIO = 0.5;
@@ -161,9 +177,13 @@ export class Poller {
         .where(eq(sources.enabled, true))
         .orderBy(asc(sources.id));
 
-      for (const source of rows) {
-        await this.pollSource(source);
-      }
+      const queue = [...rows];
+      const workers = Array.from({ length: Math.min(SOURCE_CONCURRENCY, queue.length) }, async () => {
+        for (let source = queue.shift(); source; source = queue.shift()) {
+          await this.pollSource(source);
+        }
+      });
+      await Promise.all(workers);
     } catch (error) {
       this.deps.logger.error({ err: error }, 'check cycle failed');
     }

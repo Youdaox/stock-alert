@@ -16,6 +16,8 @@ const SHOPIFY_SOURCES = [
       baseUrl: 'https://thegametree.co.nz',
       collections: ['pokemon-tcg-sealed-products'],
       requireKeyword: false,
+      // Hobby stores list new sets first, so check them every minute.
+      minIntervalSeconds: 60,
     },
   },
   {
@@ -25,6 +27,7 @@ const SHOPIFY_SOURCES = [
       baseUrl: 'https://cardmasters.co.nz',
       collections: ['pokemon'],
       requireKeyword: false,
+      minIntervalSeconds: 60,
     },
   },
   {
@@ -34,6 +37,7 @@ const SHOPIFY_SOURCES = [
       baseUrl: 'https://www.boostergames.co.nz',
       collections: ['pokemon-tcg'],
       requireKeyword: false,
+      minIntervalSeconds: 60,
     },
   },
   {
@@ -59,6 +63,8 @@ const OTHER_SOURCES = [
       // Mixed-brand category (Lorcana, Topps, sleeves), so keep the Pokemon keyword filter on.
       categoryPaths: ['/shop/toys-games-puzzles/collectables-trading-cards/trading-cards'],
       requireKeyword: true,
+      // Six pages per check, so keep it slower than the hobby stores.
+      minIntervalSeconds: 600,
     },
   },
   {
@@ -74,7 +80,7 @@ const OTHER_SOURCES = [
       requireKeyword: false,
       // Per-store stock for the user's region; roughly one request per product, so check less often.
       storeRegions: ['NZ-AUK'],
-      minIntervalMinutes: 15,
+      minIntervalSeconds: 900,
     },
   },
   {

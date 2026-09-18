@@ -47,7 +47,26 @@ export function selectAlertableEvents(
 export interface RecordRunOptions {
   channels: readonly string[];
   restockCooldownHours: number;
+  newListingMaxAgeDays?: number;
   now?: Date;
+}
+
+export const NEW_LISTING_MAX_AGE_DAYS = 21;
+
+/**
+ * A product missing from the database is not necessarily a new release: widening a filter or
+ * adding a category surfaces old stock too. Where the retailer publishes a listing date, use it.
+ */
+export function isNewRelease(
+  publishedAt: Date | undefined,
+  now: Date,
+  maxAgeDays: number = NEW_LISTING_MAX_AGE_DAYS,
+): boolean {
+  if (!publishedAt) {
+    return true;
+  }
+
+  return now.getTime() - publishedAt.getTime() <= maxAgeDays * 86_400_000;
 }
 
 export interface RecordRunSummary {
@@ -120,6 +139,7 @@ export async function recordRun(
             productType: product.productType ?? null,
             category: categorize(product.title, product.productType),
             language: detectLanguage(product.title, product.tags),
+            publishedAt: product.publishedAt ?? null,
             firstSeenAt: now,
             lastSeenAt: now,
           })),
@@ -134,6 +154,7 @@ export async function recordRun(
             productType: sql`excluded.product_type`,
             category: sql`excluded.category`,
             language: sql`excluded.language`,
+            publishedAt: sql`excluded.published_at`,
             lastSeenAt: sql`excluded.last_seen_at`,
           },
         })
@@ -178,7 +199,14 @@ export async function recordRun(
       },
     }));
 
-    const newProductIds = new Set([...productIds.keys()].filter((externalId) => !existingIds.has(externalId)));
+    const publishedByProduct = new Map(result.products.map((product) => [product.externalId, product.publishedAt]));
+    const newProductIds = new Set(
+      [...productIds.keys()].filter(
+        (externalId) =>
+          !existingIds.has(externalId) &&
+          isNewRelease(publishedByProduct.get(externalId), now, options.newListingMaxAgeDays),
+      ),
+    );
     const events = differ(prevSnapshots, diffObservations, { baseline, newProductIds });
 
     for (const batch of chunk(diffObservations)) {

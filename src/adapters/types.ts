@@ -15,6 +15,8 @@ export interface ProductRecord {
   productType?: string;
   tags: string[];
   priceCents: number | null;
+  /** When the retailer first listed it, where they say so. Used to spot genuinely new releases. */
+  publishedAt?: Date;
 }
 
 export interface LocationRecord {

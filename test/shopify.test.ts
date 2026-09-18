@@ -13,6 +13,8 @@ const page = {
       handle: 'black-bolt-elite-trainer-box',
       vendor: 'Pokemon',
       product_type: 'Elite Trainer Box',
+      published_at: '2026-09-01T10:00:00+12:00',
+      created_at: '2026-08-20T09:00:00+12:00',
       tags: ['Black Bolt', 'Elite Trainer Box'],
       variants: [{ id: 5001, title: 'Default Title', price: '139.95', available: true }],
       images: [{ src: '//cdn.shopify.com/black-bolt.png' }],
@@ -59,7 +61,12 @@ describe('mapShopifyProducts', () => {
       productType: 'Elite Trainer Box',
       tags: ['Black Bolt', 'Elite Trainer Box'],
       priceCents: 13995,
+      publishedAt: new Date('2026-09-01T10:00:00+12:00'),
     });
+  });
+
+  it('leaves publishedAt unset when the store gives no dates', () => {
+    expect(result.products[1]).not.toHaveProperty('publishedAt');
   });
 
   it('names and links variants, parses comma-separated tags, and ignores placeholder prices', () => {

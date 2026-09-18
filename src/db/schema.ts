@@ -63,6 +63,8 @@ export const products = pgTable(
     productType: text('product_type'),
     category: text('category').$type<Category>().notNull(),
     language: text('language').$type<Language>().notNull(),
+    /** The retailer's own listing date, where they publish one. */
+    publishedAt: timestamptz('published_at'),
     firstSeenAt: timestamptz('first_seen_at').notNull().defaultNow(),
     lastSeenAt: timestamptz('last_seen_at').notNull().defaultNow(),
   },
