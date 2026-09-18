@@ -30,6 +30,12 @@ export async function createWebServer({ db, logger, poller }: WebDeps) {
 
   await app.register(fastifyStatic, { root: path.resolve('public') });
 
+  // The check button posts no body; accept any content type so scripted calls work too.
+  app.addContentTypeParser('*', (_request, payload, done) => {
+    payload.resume();
+    done(null, undefined);
+  });
+
   app.get('/api/products', async () => {
     const rows = await db
       .select({
